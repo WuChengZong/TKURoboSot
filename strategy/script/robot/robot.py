@@ -13,6 +13,8 @@ from vision.msg import Object
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from std_msgs.msg import String
 from std_msgs.msg import Int32
+from imu_3d.msg import inertia
+
 
 ## Rotate 90 for 6th robot
 ## DO NOT CHANGE THIS VALUE
@@ -28,17 +30,19 @@ VISION_TOPIC = "vision/object"
 CMDVEL_TOPIC = "motion/cmd_vel"
 SHOOT_TOPIC  = "motion/shoot"
 POSITION_TOPIC = "akf_pose"
-
+IMU            = "imu_3d"
 ## Strategy Outputs
 STRATEGY_STATE_TOPIC = "robot{}/strategy/state"
 
 class Robot(object):
 
-  __robot_info = {'location' : {'x' : 0, 'y' : 0, 'yaw' : 0}}
+  __robot_info  = {'location' : {'x' : 0, 'y' : 0, 'yaw' : 0},
+                   'imu_3d' : {'yaw' : 0}}
   __object_info = {'ball':{'dis' : 0, 'ang' : 0},
                    'Blue':{'dis' : 0, 'ang' : 0},
                    'Yellow':{'dis' : 0, 'ang' : 0},
                    'velocity' : 0 }
+  __imu_info    = {'imu_3d' : {'yaw' : 0}}
   ## Configs
   __minimum_w = 0
   __maximum_w = 0
@@ -92,6 +96,7 @@ class Robot(object):
     if not sim :
       rospy.Subscriber(VISION_TOPIC, Object, self._GetVision)
       rospy.Subscriber(POSITION_TOPIC,PoseWithCovarianceStamped,self._GetPosition)
+      rospy.Subscriber(IMU,inertia,self._GetImu)
       self.MotionCtrl = self.RobotCtrlS
       self.RobotBallHandle = self.RealBallHandle
       self.RobotShoot = self.RealShoot
@@ -139,9 +144,13 @@ class Robot(object):
     self.__object_info['Yellow']['dis']  = vision.yellow_fix_dis
     self.__object_info['Yellow']['ang']  = vision.yellow_fix_ang
   
+  def _GetImu(self, imu_3d):
+    self.__imu_info['imu_3d']['ang'] = imu_3d.yaw
+
   def _GetPosition(self,loc):
     self.__robot_info['location']['x'] = loc.pose.pose.position.x*100
     self.__robot_info['location']['y'] = loc.pose.pose.position.y*100
+    self.__robot_info['imu_3d']['yaw'] = imu_3d.yaw
     qx = loc.pose.pose.orientation.x
     qy = loc.pose.pose.orientation.y
     qz = loc.pose.pose.orientation.z
@@ -192,6 +201,8 @@ class Robot(object):
 
   def GetRobotInfo(self):
     return self.__robot_info
+  def GetImu(self):
+    return self.__imu_info
 
   def SimShoot(self, power, pos) :
     rospy.wait_for_service(SIM_SHOOT_SRV.format(self.robot_number), 1)
