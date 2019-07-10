@@ -8,7 +8,7 @@ football_name=$(rosparam get /football/name)
 magenta_prefix=$(rosparam get /magenta/prefix)
 cyan_prefix=$(rosparam get /cyan/prefix)
 		                               
-cyan_x=(0 -2.5 -2 -2 -5 -5 )  # the first one is for goal-keeper
+cyan_x=(0 -1.7 -2 -2 -5 -5 )  # the first one is for goal-keeper
 cyan_y=(0 0 1 -1 2 -2 )       # the first one is for goal-keeper 
 magenta_x=(0 8.5 2 2 5 5)      # the first one is not useful now
 magenta_y=(0 0 1 -1 2 -2 )     # the first one is not useful now-keeper
@@ -16,7 +16,7 @@ magenta_y=(0 0 1 -1 2 -2 )     # the first one is not useful now-keeper
 ### spawn the football
 rosrun gazebo_ros spawn_model -file $(rospack find nubot_description)/models/football/model.sdf -sdf \
                               -model ${football_name} \
-                              -x 0.0 -y 0.0 -z 0.0 \
+                              -x 2.3 -y 0.0 -z 0.0 \
                                /
 sleep 1
 

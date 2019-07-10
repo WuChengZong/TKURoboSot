@@ -11,7 +11,6 @@ from methods.chase import Chase
 from methods.stop import Stop
 from methods.attack import Attack
 from methods.penalty import Penalty
-from methods.turn import Turn
 from methods.behavior import Behavior
 from dynamic_reconfigure.server import Server
 from strategy.cfg import StrategyConfig
@@ -27,27 +26,23 @@ class Core(Robot, StateMachine):
     self.SC  = Stop()
     self.AC  = Attack()
     self.PC  = Penalty()
-    self.TC  = Turn()
     self.BC  = Behavior()
     self.sim = sim
-    
 
   idle     = State('Idle', initial = True)
   chase    = State('Chase')
   stop     = State('stop')
-  penalty  = State('Penalty')
-  turn     = State('turn')  
+  penalty  = State('Penalty')  
   attack   = State('Attack')
   shoot    = State('Shoot')
   orbit    = State('Orbit')
   point    = State('Point')
 
-  toIdle    = chase.to(idle) | attack.to(idle)  | orbit.to(idle) | point.to(idle) | penalty.to(idle) | idle.to.itself() | shoot.to(idle) | stop.to(idle) | turn.to(idle)
+  toIdle    = chase.to(idle) | attack.to(idle)  | orbit.to(idle) | point.to(idle) | penalty.to(idle) | idle.to.itself() | shoot.to(idle) | stop.to(idle)
   toChase   = idle.to(chase) | attack.to(chase) | chase.to.itself() | orbit.to(chase) | shoot.to(chase)
-  toStop    = attack.to(stop) | penalty.to(stop) | turn.to(stop)
+  toStop    = attack.to(stop) | penalty.to(stop)
   toAttack  = chase.to(attack) | attack.to.itself() | orbit.to(attack)
-  toPenalty = chase.to(penalty) | penalty.to.itself()
-  toTurn    = chase.to(turn) | turn.to.itself()  
+  toPenalty = chase.to(penalty) | penalty.to.itself()  
   toShoot   = stop.to(shoot) 
   toOrbit   = chase.to(orbit) | orbit.to.itself()
   toPoint   = point.to.itself() | idle.to(point)
@@ -80,14 +75,10 @@ class Core(Robot, StateMachine):
     self.MotionCtrl(x, y, yaw)
 
 
-  def on_toPenalty(self, t, side):
-    x, y, yaw = self.PC.ClassicPenalting(t[side]['dis'], t[side]['ang'])
+  def on_toPenalty(self, t, side, a):
+    x, y, yaw = self.PC.ClassicPenalting(t[side]['dis'], t[side]['ang'], a)
     self.MotionCtrl(x, y, yaw)
     
-  def on_toTurn(self, t , side ,p, location , a):
-    x, y, yaw = self.TC.ClassicTurning(t[side]['dis'], t[side]['ang'], p['location']['yaw'], a)
-    self.MotionCtrl(x, y, yaw)
-
 
   def on_toShoot(self, power, pos):
     self.RobotShoot(power, pos)
@@ -114,8 +105,7 @@ class Strategy(Robot):
     self.game_state = "Kick_Off"
     self.side       = "Yellow"
     self.opp_side   = 'Yellow' if self.side == 'Blue' else 'Blue'
-    self.location   = 'location'
-   
+
   def RunStatePoint(self, state):
     if state == "Kick_Off" :
       r = self.robot.toPoint(0, 0, 0)
@@ -160,8 +150,6 @@ class Strategy(Robot):
     rate = rospy.Rate(1000)
     b = input("b=")
     print(input)
-    a = input("a=")
-    print(input)
 
 
     dsrv = Server(StrategyConfig, self.Callback)
@@ -177,6 +165,7 @@ class Strategy(Robot):
       self.robot = Core(1, True)
 
     while not rospy.is_shutdown():
+      a = 0
 
       self.robot.PubCurrentState()
 
@@ -190,7 +179,6 @@ class Strategy(Robot):
         if not self.robot.is_idle and not self.run_point and not self.game_start:
           self.robot.toIdle()
           print("idle")
-          print(position['location']['yaw'])
 
         if self.robot.is_idle and self.game_start:
                               
@@ -198,11 +186,11 @@ class Strategy(Robot):
           #self.robot.toChase(targets, self.opp_side, "Straight")
           self.robot.toChase(targets, self.opp_side, "Straight")
           
-          
           print("chase")
           # go chase
 
-        elif self.robot.is_chase and not self.robot.CheckBallHandle() :
+        elif self.robot.is_chase and targets['ball']['dis'] > 45 \
+                                  and abs(targets['ball']['ang']) > 20:
                        
           #self.robot.toChase(targets, self.opp_side, "Straight")
           self.robot.toChase(targets, self.opp_side, "Straight")
@@ -212,96 +200,67 @@ class Strategy(Robot):
 
 
         if self.robot.is_chase and self.robot.CheckBallHandle() \
-                               and b == 1:
+                                and targets['ball']['dis'] <= 45 \
+                                and abs(targets['ball']['ang']) <= 20 \
+                                and b == 1:
+          a = random.choice([-30,30])
 	  
-          self.robot.toPenalty(targets, self.opp_side)
+          self.robot.toPenalty(targets, self.opp_side , a)
           print("penalty")
-          # go penalty
-        
-        if self.robot.is_chase and self.robot.CheckBallHandle() \
-                               and b == 2:
-	  
-          self.robot.toTurn(targets, self.opp_side , position, self.location , a)
-          print("turn")
-          # go turn 
+          # go penalty(turn)
 
         if self.robot.is_chase and self.robot.CheckBallHandle() \
-                               and b == 0:
+                                and targets['ball']['dis'] <= 45 \
+                                and abs(targets['ball']['ang']) <= 20 \
+                                and b != 1:
 	  
           self.robot.toAttack(targets, self.opp_side)
           print("attack")
           # go attack
 
         if self.robot.is_penalty and self.robot.CheckBallHandle() \
-                                 and abs(targets[self.opp_side]['ang'])  > 5 \
-                                 and b == 1:
+                                   and abs(targets[self.opp_side]['ang'])  < 30 \
+                                   and a == 30 :
 
-          self.robot.toPenalty(targets, self.opp_side)
+          self.robot.toPenalty(targets, self.opp_side , a)
           print("keep penalty")
-          # keep  penalty
+          # keep  penalty(turn)
 
-        if self.robot.is_turn and abs(position[self.location]['yaw']) < 90:
-          location = (position[self.location]['yaw'])
-          if a >= 0 and location < a :
-            self.robot.toTurn(targets, self.opp_side , position, self.location , a)
-          elif a <= 0 and location >= a :
-            self.robot.toTurn(targets, self.opp_side , position, self.location , a)     
-          print("keep turn")
-          # keep  turn
+        elif self.robot.is_penalty and self.robot.CheckBallHandle() \
+                                   and abs(targets[self.opp_side]['ang'])  < 30 \
+                                   and a == -30 :
 
-        elif self.robot.is_turn and abs(position[self.location]['yaw']) > 90:
-          if a >= 0 :
-            location = (position[self.location]['yaw']) + 180
-            if location < a:
-              self.robot.toTurn(targets, self.opp_side , position, self.location , a)
-          elif a <= 0 :
-            location = (position[self.location]['yaw']) - 180
-            if location < -a :
-              self.robot.toTurn(targets, self.opp_side , position, self.location , a)     
-          print("keep turn")
-          # keep  turn
+          self.robot.toPenalty(targets, self.opp_side , a)
+          print("keep penalty")
+          # keep  penalty(turn)
 
 
         if self.robot.is_penalty and self.robot.CheckBallHandle() \
-                                 and abs(targets[self.opp_side]['ang'])  <=5 :
+                                 and abs(targets[self.opp_side]['ang'])  >= 30 :
 
           self.robot.toStop(targets, self.opp_side)
           print("stop")
-          sleep(1)
-          # stop
-
-        if self.robot.is_turn and self.robot.CheckBallHandle() \
-                              and abs(position[self.location]['yaw']) >= 20 :
-
-          self.robot.toStop(targets, self.opp_side)
-          print("stop")
-          sleep(1)
-          print(position['location']['yaw'])
-          # stop 
-
-        if self.robot.is_turn and self.robot.CheckBallHandle() \
-                              and abs(position[self.location]['yaw']) == 160 :
-
-          self.robot.toStop(targets, self.opp_side)
-          print("stop")
-          sleep(1)
-          print(position['location']['yaw'])
           # stop 
         
 
-        elif self.robot.is_attack and self.robot.CheckBallHandle() \
+        elif self.robot.is_attack and abs(targets['ball']['ang']) <= 20 \
+                                  and targets['ball']['dis'] <= 45 \
+                                  and self.robot.CheckBallHandle() \
                                   and targets[self.opp_side]['dis'] >= 150:
           self.robot.toAttack(targets, self.opp_side)
           print("keep attack")
           # keep attack
 
-        elif self.robot.is_attack and not self.robot.CheckBallHandle() :
+        elif self.robot.is_attack and abs(targets['ball']['ang']) > 20 \
+                                  and targets['ball']['dis'] > 45:
                                   
           self.robot.toChase(targets, self.opp_side, "Straight")
           print("back to chase")
           # back to chase
 
         elif self.robot.is_attack and self.robot.CheckBallHandle() \
+                                  and abs(targets['ball']['ang']) <= 20 \
+                                  and targets['ball']['dis'] <= 45 \
                                   and abs(targets[self.opp_side]['ang']) < 10 \
                                   and targets[self.opp_side]['dis'] <= 150:
           self.robot.toStop(targets, self.opp_side)
@@ -314,8 +273,8 @@ class Strategy(Robot):
           print("shoot")
           # shoot
 
-        if self.robot.is_shoot and self.robot.CheckBallHandle():
-          sleep(1)
+        if self.robot.is_shoot and targets['ball']['dis'] > 45:
+          sleep(3)
           # stop for three seconds
           self.robot.toChase(targets, self.opp_side, "Straight")
           print("back to chase")

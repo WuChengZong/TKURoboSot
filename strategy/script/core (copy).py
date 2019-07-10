@@ -160,8 +160,7 @@ class Strategy(Robot):
     rate = rospy.Rate(1000)
     b = input("b=")
     print(input)
-    a = input("a=")
-    print(input)
+
 
 
     dsrv = Server(StrategyConfig, self.Callback)
@@ -177,6 +176,7 @@ class Strategy(Robot):
       self.robot = Core(1, True)
 
     while not rospy.is_shutdown():
+      a = 0
 
       self.robot.PubCurrentState()
 
@@ -220,6 +220,8 @@ class Strategy(Robot):
         
         if self.robot.is_chase and self.robot.CheckBallHandle() \
                                and b == 2:
+          
+          a = random.choice([20,-20])
 	  
           self.robot.toTurn(targets, self.opp_side , position, self.location , a)
           print("turn")
@@ -240,24 +242,23 @@ class Strategy(Robot):
           print("keep penalty")
           # keep  penalty
 
-        if self.robot.is_turn and abs(position[self.location]['yaw']) < 90:
-          location = (position[self.location]['yaw'])
-          if a >= 0 and location < a :
-            self.robot.toTurn(targets, self.opp_side , position, self.location , a)
-          elif a <= 0 and location >= a :
-            self.robot.toTurn(targets, self.opp_side , position, self.location , a)     
+        if self.robot.is_turn and self.robot.CheckBallHandle() \
+                              and abs(position[self.location]['yaw']) < 20 or abs(position[self.location]['yaw']) > 160 \
+                              and a == 20\
+                              and b == 2:
+          a = 20
+
+          self.robot.toTurn(targets, self.opp_side , position, self.location , a)
           print("keep turn")
           # keep  turn
 
-        elif self.robot.is_turn and abs(position[self.location]['yaw']) > 90:
-          if a >= 0 :
-            location = (position[self.location]['yaw']) + 180
-            if location < a:
-              self.robot.toTurn(targets, self.opp_side , position, self.location , a)
-          elif a <= 0 :
-            location = (position[self.location]['yaw']) - 180
-            if location < -a :
-              self.robot.toTurn(targets, self.opp_side , position, self.location , a)     
+        elif self.robot.is_turn and self.robot.CheckBallHandle() \
+                                and abs(position[self.location]['yaw']) < 20 or abs(position[self.location]['yaw']) > 160 \
+                                and a == -20\
+                                and b == 2:
+          a = -20
+
+          self.robot.toTurn(targets, self.opp_side , position, self.location , a)
           print("keep turn")
           # keep  turn
 
@@ -267,7 +268,6 @@ class Strategy(Robot):
 
           self.robot.toStop(targets, self.opp_side)
           print("stop")
-          sleep(1)
           # stop
 
         if self.robot.is_turn and self.robot.CheckBallHandle() \
