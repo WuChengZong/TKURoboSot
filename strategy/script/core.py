@@ -130,13 +130,18 @@ class Core(Robot, StateMachine):
       self.MotionCtrl(x, y, yaw)
     
     elif method == "Penalty_Kick":
+      run_yaw   = self.run_yaw
       front_ang = math.degrees(position['imu_3d']['yaw'])-90
-      x, y, yaw = self.BC.PenaltyTurning(side, self.run_yaw)
+      dest_ang  = front_ang - run_yaw
+      a = []
+      a.append(dest_ang)
+      dest_ang = a[0]
+      imu_ang = front_ang - dest_ang
+      x, y, yaw = self.BC.PenaltyTurning(side, front_ang, run_yaw, imu_ang )
       self.MotionCtrl(x, y, yaw)
-    
-    
-    
-      
+
+
+
   def on_toPoint(self):
     if self.game_state == "Kick_Off" and self.our_side == "Yellow" :
       x, y, yaw, arrived = self.BC.Go2Point(-60, 0, 0)
@@ -186,6 +191,7 @@ class Core(Robot, StateMachine):
 class Strategy(object):
 
   def __init__(self, num, sim=False):
+    super().__init__()
     rospy.init_node('core', anonymous=True)
     self.rate = rospy.Rate(1000)
     self.robot = Core(num, sim)
@@ -246,6 +252,7 @@ class Strategy(object):
       mode = self.robot.strategy_mode
       state = self.robot.game_state
       laser = self.robot.GetObstacleInfo()
+      count = 0
 
       # Can not find ball when starting
       if targets is None or targets['ball']['ang'] == 999 and self.robot.game_start:
@@ -279,8 +286,11 @@ class Strategy(object):
 
         if self.robot.is_movement:          
           if state == "Penalty_Kick":
-            if abs(targets[self.robot.opp_side]['ang']) <= self.robot.atk_shoot_ang:
+            if abs(targets[self.robot.opp_side]['ang']) <= self.robot.atk_shoot_ang and self.robot.run_yaw == 0:
               print("stop") 
+              self.robot.game_state = "Kick_Off"
+              self.robot.toShoot(100)
+            elif <= self.robot.atk_shoot_ang and self.robotrun_yaw != 0:
               self.robot.game_state = "Kick_Off"
               self.robot.toShoot(100)
             else:
